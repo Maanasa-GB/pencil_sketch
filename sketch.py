@@ -2,17 +2,16 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-import io
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
-    page_title="Cartoon Sketch Generator",
-    page_icon="🎨",
+    page_title="AI Pencil Sketch Generator",
+    page_icon="✏️",
     layout="centered"
 )
 
-st.title("🎨 Cartoon Sketch Generator")
-st.write("Upload an image and convert it into a cartoon-style pencil sketch.")
+st.title("✏️ AI Pencil Sketch Generator")
+st.write("Upload an image and convert it into a realistic pencil sketch.")
 
 # ---------------- FILE UPLOAD ----------------
 uploaded_file = st.file_uploader(
@@ -21,65 +20,54 @@ uploaded_file = st.file_uploader(
 )
 
 # ---------------- FUNCTIONS ----------------
-def cartoon_sketch(image):
-
-    # Convert RGB to BGR
-    img = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-
-    # Smooth colors while preserving edges
-    color = cv2.bilateralFilter(img, 9, 250, 250)
-
-    # Convert to grayscale
-    gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
-
-    # Reduce noise
-    gray_blur = cv2.medianBlur(gray, 5)
-
-    # Create edge mask
-    edges = cv2.adaptiveThreshold(
-        gray_blur,
-        255,
-        cv2.ADAPTIVE_THRESH_MEAN_C,
-        cv2.THRESH_BINARY,
-        9,
-        9
-    )
-
-    # Cartoon effect
-    cartoon = cv2.bitwise_and(color, color, mask=edges)
-
-    # Convert back to RGB
-    cartoon = cv2.cvtColor(cartoon, cv2.COLOR_BGR2RGB)
-
-    return cartoon
-
-
-def pencil_cartoon(image):
+def pencil_sketch(image, blur_value=21):
 
     # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
+    # Reduce noise
+    gray = cv2.bilateralFilter(gray, 9, 75, 75)
+
     # Invert image
-    invert = 255 - gray
+    inverted = 255 - gray
 
     # Blur inverted image
-    blur = cv2.GaussianBlur(invert, (25, 25), 0)
+    blurred = cv2.GaussianBlur(
+        inverted,
+        (blur_value, blur_value),
+        0
+    )
 
-    # Invert blur
-    inverted_blur = 255 - blur
+    # Invert blurred image
+    inverted_blur = 255 - blurred
 
-    # Pencil sketch
-    sketch = cv2.divide(gray, inverted_blur, scale=256.0)
+    # Create sketch
+    sketch = cv2.divide(
+        gray,
+        inverted_blur,
+        scale=256.0
+    )
 
-    # Convert sketch to RGB
-    sketch_rgb = cv2.cvtColor(sketch, cv2.COLOR_GRAY2RGB)
+    # Improve contrast
+    sketch = cv2.equalizeHist(sketch)
 
-    # Blend sketch with original image
+    return sketch
+
+
+def color_sketch(image, sketch):
+
+    # Convert sketch to 3 channels
+    sketch_colored = cv2.cvtColor(
+        sketch,
+        cv2.COLOR_GRAY2RGB
+    )
+
+    # Blend with original image
     blend = cv2.addWeighted(
         image,
-        0.35,
-        sketch_rgb,
-        0.65,
+        0.25,
+        sketch_colored,
+        0.75,
         0
     )
 
@@ -95,37 +83,54 @@ if uploaded_file is not None:
     st.subheader("Original Image")
     st.image(img, use_column_width=True)
 
-    st.sidebar.header("Filter Options")
+    st.sidebar.header("Sketch Settings")
 
-    filter_type = st.sidebar.selectbox(
-        "Choose Style",
-        [
-            "Cartoon Effect",
-            "Cartoon Pencil Sketch"
-        ]
+    blur = st.sidebar.slider(
+        "Sketch Smoothness",
+        5,
+        51,
+        21,
+        step=2
     )
 
-    if filter_type == "Cartoon Effect":
-        output = cartoon_sketch(img)
+    # Generate sketch
+    sketch = pencil_sketch(img, blur)
 
-    else:
-        output = pencil_cartoon(img)
+    # Generate color sketch
+    color_version = color_sketch(img, sketch)
 
-    st.subheader("✨ Generated Output")
-    st.image(output, use_column_width=True)
+    # ---------------- OUTPUT ----------------
+    st.subheader("Black & White Pencil Sketch")
+    st.image(
+        sketch,
+        use_column_width=True,
+        clamp=True
+    )
 
-    # ---------------- DOWNLOAD ----------------
-    result = Image.fromarray(output)
+    st.subheader("Colored Pencil Sketch")
+    st.image(
+        color_version,
+        use_column_width=True
+    )
 
-    buf = io.BytesIO()
-    result.save(buf, format="PNG")
+    # ---------------- DOWNLOAD BUTTONS ----------------
+    sketch_pil = Image.fromarray(sketch)
+
+    color_pil = Image.fromarray(color_version)
 
     st.download_button(
-        label="⬇ Download Image",
-        data=buf.getvalue(),
-        file_name="cartoon_sketch.png",
+        label="⬇ Download Pencil Sketch",
+        data=sketch_pil.tobytes(),
+        file_name="pencil_sketch.png",
+        mime="image/png"
+    )
+
+    st.download_button(
+        label="⬇ Download Colored Sketch",
+        data=color_pil.tobytes(),
+        file_name="colored_sketch.png",
         mime="image/png"
     )
 
 else:
-    st.info("Upload an image to generate a cartoon sketch.")
+    st.info("Please upload an image to begin.")
