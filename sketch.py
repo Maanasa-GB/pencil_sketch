@@ -1,29 +1,43 @@
+import streamlit as st
 import cv2
+import numpy as np
+from PIL import Image
 
-# Load image
-image = cv2.imread("input.jpg")
+st.title("Pencil Sketch Generator")
 
-# Convert to grayscale
-gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+uploaded_file = st.file_uploader(
+    "Upload an Image",
+    type=["jpg", "png", "jpeg"]
+)
 
-# Invert image
-inverted_image = 255 - gray_image
+if uploaded_file is not None:
 
-# Blur image
-blurred = cv2.GaussianBlur(inverted_image, (21, 21), 0)
+    image = Image.open(uploaded_file)
 
-# Invert blurred image
-inverted_blurred = 255 - blurred
+    img = np.array(image)
 
-# Create pencil sketch
-sketch = cv2.divide(gray_image, inverted_blurred, scale=256.0)
+    gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-# Save output
-cv2.imwrite("output_sketch.jpg", sketch)
+    inverted_image = 255 - gray_image
 
-# Display result
-cv2.imshow("Original Image", image)
-cv2.imshow("Pencil Sketch", sketch)
+    blurred = cv2.GaussianBlur(
+        inverted_image,
+        (21, 21),
+        0
+    )
 
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+    inverted_blurred = 255 - blurred
+
+    sketch = cv2.divide(
+        gray_image,
+        inverted_blurred,
+        scale=256.0
+    )
+
+    st.image(img, caption="Original Image")
+
+    st.image(
+        sketch,
+        caption="Pencil Sketch",
+        clamp=True
+    )
